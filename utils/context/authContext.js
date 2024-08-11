@@ -1,69 +1,58 @@
-// Context API Docs: https://beta.reactjs.org/learn/passing-data-deeply-with-context
-
 import React, {
-  createContext, //
+  createContext,
   useContext,
   useEffect,
   useMemo,
   useState,
 } from 'react';
-import { checkUser } from '../auth';
 import { firebase } from '../client';
 
 const AuthContext = createContext();
 
-AuthContext.displayName = 'AuthContext'; // Context object accepts a displayName string property. React DevTools uses this string to determine what to display for the context. https://reactjs.org/docs/context.html#contextdisplayname
+AuthContext.displayName = 'AuthContext';
 
 const AuthProvider = (props) => {
   const [user, setUser] = useState(null);
-  const [oAuthUser, setOAuthUser] = useState(null);
-
-  // there are 3 states for the user:
-  // null = application initial state, not yet loaded
-  // false = user is not logged in, but the app has loaded
-  // an object/value = user is logged in
-
-  const updateUser = useMemo(
-    () => (uid) => checkUser(uid).then((gamerInfo) => {
-      setUser({ fbUser: oAuthUser, ...gamerInfo });
-    }),
-    [oAuthUser],
-  );
+  const [userLoading, setUserLoading] = useState(true);
 
   useEffect(() => {
-    firebase.auth().onAuthStateChanged((fbUser) => {
+    const unsubscribe = firebase.auth().onAuthStateChanged((fbUser) => {
       if (fbUser) {
-        setOAuthUser(fbUser);
-        checkUser(fbUser.uid).then((gamerInfo) => {
-          let userObj = {};
-          if ('null' in gamerInfo) {
-            userObj = gamerInfo;
+        // Check if user exists in Realtime Database
+        firebase.database().ref(`/users/${fbUser.uid}`).once('value').then((snapshot) => {
+          if (snapshot.exists()) {
+            setUser({ fbUser, ...snapshot.val() });
           } else {
-            userObj = { fbUser, uid: fbUser.uid, ...gamerInfo };
+            // If user doesn't exist in the database, register the user
+            const newUser = {
+              displayName: fbUser.displayName,
+              email: fbUser.email,
+            };
+            firebase.database().ref(`/users/${fbUser.uid}`).set(newUser);
+            setUser({ fbUser, ...newUser });
           }
-          setUser(userObj);
+          setUserLoading(false);
         });
       } else {
-        setOAuthUser(false);
-        setUser(false);
+        setUser(null);
+        setUserLoading(false);
       }
-    }); // creates a single global listener for auth state changed
+    });
+
+    return () => unsubscribe(); // Clean up the listener on unmount
   }, []);
 
   const value = useMemo(
-    // https://reactjs.org/docs/hooks-reference.html#usememo
     () => ({
       user,
-      updateUser,
-      userLoading: user === null || oAuthUser === null,
-      // as long as user === null, will be true
-      // As soon as the user value !== null, value will be false
+      userLoading,
     }),
-    [user, oAuthUser, updateUser],
+    [user, userLoading],
   );
 
   return <AuthContext.Provider value={value} {...props} />;
 };
+
 const AuthConsumer = AuthContext.Consumer;
 
 const useAuth = () => {
