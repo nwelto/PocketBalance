@@ -20,3 +20,21 @@ a {
 body {
   background-color: #88effd;
 }
+.budget-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); /* Adjusts based on screen size */
+  gap: 20px;
+  width: 100%;
+  margin-top: 20px;
+}
+
+@media (max-width: 768px) {
+  .budget-cards-grid {
+    grid-template-columns: 1fr; /* Single column on small screens */
+    gap: 15px;
+  }
+}
+
+.card {
+  max-width: 100%; /* Ensure cards don't overflow the grid */
+}

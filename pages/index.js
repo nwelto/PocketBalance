@@ -1,54 +1,58 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button } from 'react-bootstrap';
+import { Button, Form } from 'react-bootstrap';
 import { useAuth } from '../utils/context/authContext';
-import { firebase } from '../utils/client';
+import { getIncome, setIncome } from '../API/income';
+import { getBudget, updateBudget } from '../API/budget';
+import BudgetCard from '../components/BudgetCard';
 
 function Home() {
   const { user, userLoading } = useAuth();
   const [payAmount, setPayAmount] = useState(0);
-  const [transactions, setTransactions] = useState([]);
+  const [budgets, setBudgets] = useState({});
+  const [editMode, setEditMode] = useState(false);
+  const [newIncome, setNewIncome] = useState('');
 
   useEffect(() => {
+    let isMounted = true;
+
     if (user && !userLoading) {
-      // Set up a real-time listener for payAmount
-      const payRef = firebase.database().ref(`/users/${user.fbUser.uid}/payAmount`);
-      payRef.on('value', (snapshot) => {
-        if (snapshot.exists()) {
-          setPayAmount(snapshot.val());
-        }
+      getIncome(user.fbUser.uid).then((fetchedIncome) => {
+        if (isMounted) setPayAmount(fetchedIncome || 0);
       });
 
-      // Set up a listener for transactions
-      const transactionsRef = firebase.database().ref(`/users/${user.fbUser.uid}/transactions`);
-      transactionsRef.on('value', (snapshot) => {
-        const transactionsList = [];
-        snapshot.forEach((childSnapshot) => {
-          transactionsList.push({ key: childSnapshot.key, ...childSnapshot.val() });
-        });
-        setTransactions(transactionsList);
+      getBudget(user.fbUser.uid).then((fetchedBudgets) => {
+        if (isMounted) setBudgets(fetchedBudgets || {});
       });
-
-      // Cleanup function to remove listeners when component unmounts
-      return () => {
-        payRef.off();
-        transactionsRef.off();
-      };
     }
 
-    // Return nothing explicitly if no user is logged in or userLoading is true
-    return undefined;
+    return () => {
+      isMounted = false;
+    };
   }, [user, userLoading]);
 
-  const handleDelete = (key, transactionAmount, type) => {
-    const transactionsRef = firebase.database().ref(`/users/${user.fbUser.uid}/transactions/${key}`);
-    transactionsRef.remove();
+  const handleEditClick = () => {
+    setEditMode(true);
+  };
 
-    const payRef = firebase.database().ref(`/users/${user.fbUser.uid}/payAmount`);
-    payRef.once('value').then((snapshot) => {
-      const currentPayAmount = snapshot.val() || 0;
-      const updatedPayAmount = type === 'income' ? currentPayAmount - transactionAmount : currentPayAmount + transactionAmount;
-      payRef.set(updatedPayAmount);
-    });
+  const handleSaveClick = async () => {
+    const income = parseFloat(newIncome);
+    if (!Number.isNaN(income)) {
+      await setIncome(user.fbUser.uid, income);
+      setPayAmount(income);
+      setEditMode(false);
+      setNewIncome('');
+    } else {
+      alert('Please enter a valid number for income');
+    }
+  };
+
+  const handleUpdateBudget = async (category, amount) => {
+    const updatedBudgets = {
+      ...budgets,
+      [category]: amount,
+    };
+    setBudgets(updatedBudgets);
+    await updateBudget(user.fbUser.uid, category, amount);
   };
 
   if (userLoading) {
@@ -61,41 +65,60 @@ function Home() {
 
   return (
     <div
-      className="text-center d-flex flex-column justify-content-center align-content-center"
-      style={{
-        height: '90vh', padding: '30px', maxWidth: '600px', margin: '0 auto',
-      }}
+      className="d-flex flex-column align-items-center justify-content-center"
+      style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}
     >
-      <h1 style={{ fontSize: '4rem', marginBottom: '20px' }}>
-        ${payAmount.toFixed(2)}
-      </h1>
+      <div className="text-center mb-4">
+        {editMode ? (
+          <div>
+            <Form.Control
+              type="number"
+              value={newIncome}
+              onChange={(e) => setNewIncome(e.target.value)}
+              placeholder="Enter new income"
+            />
+            <Button onClick={handleSaveClick} className="mt-2">Save</Button>
+          </div>
+        ) : (
+          <div>
+            <h1 style={{ fontSize: '4rem' }}>${Number(payAmount).toFixed(2)}</h1>
+            <Button onClick={handleEditClick} className="mt-2">Edit</Button>
+          </div>
+        )}
+      </div>
 
-      <Table striped bordered hover className="mt-4">
-        <thead>
-          <tr>
-            <th>Description</th>
-            <th>Amount</th>
-            <th>Date</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {transactions.map((transaction) => (
-            <tr key={transaction.key}>
-              <td>{transaction.description}</td>
-              <td style={{ color: transaction.type === 'expense' ? 'red' : 'green' }}>
-                {transaction.type === 'expense' ? '-' : '+'}${transaction.amount.toFixed(2)}
-              </td>
-              <td>{new Date(transaction.date).toLocaleDateString()}</td>
-              <td>
-                <Button variant="danger" size="sm" onClick={() => handleDelete(transaction.key, transaction.amount, transaction.type)}>
-                  X
-                </Button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </Table>
+      <div className="budget-cards-grid">
+        <BudgetCard
+          title="Bills"
+          originalBudget={budgets.Bills || 300}
+          initialBudget={0}
+          onUpdate={handleUpdateBudget}
+        />
+        <BudgetCard
+          title="Groceries"
+          originalBudget={budgets.Groceries || 150}
+          initialBudget={0}
+          onUpdate={handleUpdateBudget}
+        />
+        <BudgetCard
+          title="Debt"
+          originalBudget={budgets.Debt || 200}
+          initialBudget={0}
+          onUpdate={handleUpdateBudget}
+        />
+        <BudgetCard
+          title="Fun Money"
+          originalBudget={budgets.FunMoney || 100}
+          initialBudget={0}
+          onUpdate={handleUpdateBudget}
+        />
+        <BudgetCard
+          title="Savings"
+          originalBudget={budgets.Savings || 500}
+          initialBudget={0}
+          onUpdate={handleUpdateBudget}
+        />
+      </div>
     </div>
   );
 }

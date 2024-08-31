@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Form } from 'react-bootstrap';
+import {
+  Table, Button, Form, Modal,
+} from 'react-bootstrap';
 import { useAuth } from '../utils/context/authContext';
 import { firebase } from '../utils/client';
 
@@ -7,7 +9,10 @@ function Expenses() {
   const { user, userLoading } = useAuth();
   const [expenses, setExpenses] = useState([]);
   const [amount, setAmount] = useState('');
-  const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('');
+  const [categories, setCategories] = useState(['Groceries', 'Bullshit', 'Health']);
+  const [showModal, setShowModal] = useState(false);
+  const [newCategory, setNewCategory] = useState('');
 
   useEffect(() => {
     if (user && !userLoading) {
@@ -26,20 +31,29 @@ function Expenses() {
     setAmount(e.target.value);
   };
 
-  const handleDescriptionChange = (e) => {
-    setDescription(e.target.value);
+  const handleCategoryChange = (e) => {
+    if (e.target.value === 'Add New Category') {
+      setShowModal(true);
+    } else {
+      setCategory(e.target.value);
+    }
+  };
+
+  const handleNewCategoryChange = (e) => {
+    setNewCategory(e.target.value);
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const finalCategory = category || newCategory;
     const newExpense = {
       amount: parseFloat(amount),
-      description,
+      description: finalCategory,
       date: new Date().toISOString(),
       type: 'expense',
     };
 
-    if (!Number.isNaN(newExpense.amount) && newExpense.description.trim() !== '') {
+    if (!Number.isNaN(newExpense.amount) && finalCategory.trim() !== '') {
       const payRef = firebase.database().ref(`/users/${user.fbUser.uid}/payAmount`);
       payRef.once('value').then((snapshot) => {
         const currentPayAmount = snapshot.val() || 0;
@@ -48,8 +62,15 @@ function Expenses() {
 
       firebase.database().ref(`/users/${user.fbUser.uid}/transactions`).push(newExpense);
 
+      if (newCategory && !categories.includes(newCategory)) {
+        setCategories([...categories, newCategory]);
+        setCategory(newCategory); // Automatically select the new category
+      }
+
       setAmount('');
-      setDescription('');
+      setCategory('Groceries');
+      setNewCategory('');
+      setShowModal(false);
     }
   };
 
@@ -60,9 +81,22 @@ function Expenses() {
     const payRef = firebase.database().ref(`/users/${user.fbUser.uid}/payAmount`);
     payRef.once('value').then((snapshot) => {
       const currentPayAmount = snapshot.val() || 0;
-      const updatedPayAmount = currentPayAmount + transactionAmount; // Adding the expense amount back
+      const updatedPayAmount = currentPayAmount + transactionAmount;
       payRef.set(updatedPayAmount);
     });
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setNewCategory('');
+  };
+
+  const handleAddNewCategory = () => {
+    if (newCategory.trim()) {
+      setCategories([...categories, newCategory]);
+      setCategory(newCategory); // Set the new category as selected
+      setShowModal(false);
+    }
   };
 
   if (userLoading) {
@@ -93,13 +127,15 @@ function Expenses() {
           />
         </Form.Group>
         <Form.Group>
-          <Form.Control
-            type="text"
-            placeholder="Enter description"
-            value={description}
-            onChange={handleDescriptionChange}
-            required
-          />
+          <Form.Control as="select" value={category} onChange={handleCategoryChange}>
+            <option value="">Select Category</option>
+            {categories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+            <option value="Add New Category">Add New Category</option>
+          </Form.Control>
         </Form.Group>
         <Button variant="primary" type="submit" size="lg" className="mt-3">
           Add Expense
@@ -110,7 +146,7 @@ function Expenses() {
       <Table striped bordered hover className="mt-4">
         <thead>
           <tr>
-            <th>Description</th>
+            <th>Category</th>
             <th>Amount</th>
             <th>Date</th>
             <th>Actions</th>
@@ -133,6 +169,35 @@ function Expenses() {
           ))}
         </tbody>
       </Table>
+
+      <Modal show={showModal} onHide={handleCloseModal}>
+        <Modal.Header closeButton>
+          <Modal.Title>Add New Category</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form.Group>
+            <Form.Control
+              type="text"
+              placeholder="Enter new category"
+              value={newCategory}
+              onChange={handleNewCategoryChange}
+              required
+            />
+          </Form.Group>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={handleCloseModal}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleAddNewCategory}
+            disabled={!newCategory.trim()}
+          >
+            Add Category
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 }
