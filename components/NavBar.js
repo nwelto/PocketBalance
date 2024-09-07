@@ -28,9 +28,6 @@ export default function NavBar() {
             <Link passHref href="/paycheck">
               <Nav.Link>Paycheck</Nav.Link>
             </Link>
-            <Link passHref href="/manual-update">
-              <Nav.Link>Manual Update</Nav.Link>
-            </Link>
           </Nav>
           <Button variant="danger" onClick={signOut}>
             Sign Out
