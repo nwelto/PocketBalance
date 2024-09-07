@@ -1,16 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Form } from 'react-bootstrap';
 import { useAuth } from '../utils/context/authContext';
-import { getIncome, setIncome } from '../API/income';
+import { getIncome } from '../API/income';
 import { getBudget, updateBudget } from '../API/budget';
 import BudgetCard from '../components/BudgetCard';
 
-function Home() {
+function Index() {
   const { user, userLoading } = useAuth();
   const [payAmount, setPayAmount] = useState(0);
   const [budgets, setBudgets] = useState({});
-  const [editMode, setEditMode] = useState(false);
-  const [newIncome, setNewIncome] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -30,22 +27,6 @@ function Home() {
     };
   }, [user, userLoading]);
 
-  const handleEditClick = () => {
-    setEditMode(true);
-  };
-
-  const handleSaveClick = async () => {
-    const income = parseFloat(newIncome);
-    if (!Number.isNaN(income)) {
-      await setIncome(user.fbUser.uid, income);
-      setPayAmount(income);
-      setEditMode(false);
-      setNewIncome('');
-    } else {
-      alert('Please enter a valid number for income');
-    }
-  };
-
   const handleUpdateBudget = async (category, amount) => {
     const updatedBudgets = {
       ...budgets,
@@ -53,6 +34,14 @@ function Home() {
     };
     setBudgets(updatedBudgets);
     await updateBudget(user.fbUser.uid, category, amount);
+  };
+
+  const handleBudgetSet = (budgetAmount) => {
+    setPayAmount((prev) => prev - budgetAmount);
+  };
+
+  const handleBudgetDelete = (budgetAmount) => {
+    setPayAmount((prev) => prev + budgetAmount);
   };
 
   if (userLoading) {
@@ -69,58 +58,48 @@ function Home() {
       style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}
     >
       <div className="text-center mb-4">
-        {editMode ? (
-          <div>
-            <Form.Control
-              type="number"
-              value={newIncome}
-              onChange={(e) => setNewIncome(e.target.value)}
-              placeholder="Enter new income"
-            />
-            <Button onClick={handleSaveClick} className="mt-2">Save</Button>
-          </div>
-        ) : (
-          <div>
-            <h1 style={{ fontSize: '4rem' }}>${Number(payAmount).toFixed(2)}</h1>
-            <Button onClick={handleEditClick} className="mt-2">Edit</Button>
-          </div>
-        )}
+        <h1 style={{ fontSize: '4rem' }}>${Number(payAmount).toFixed(2)}</h1>
       </div>
 
       <div className="budget-cards-grid">
         <BudgetCard
           title="Bills"
-          originalBudget={budgets.Bills || 300}
-          initialBudget={0}
+          initialBudget={budgets.Bills || 0}
           onUpdate={handleUpdateBudget}
+          onBudgetSet={handleBudgetSet}
+          onBudgetDelete={handleBudgetDelete}
         />
         <BudgetCard
           title="Groceries"
-          originalBudget={budgets.Groceries || 150}
-          initialBudget={0}
+          initialBudget={budgets.Groceries || 0}
           onUpdate={handleUpdateBudget}
+          onBudgetSet={handleBudgetSet}
+          onBudgetDelete={handleBudgetDelete}
         />
         <BudgetCard
           title="Debt"
-          originalBudget={budgets.Debt || 200}
-          initialBudget={0}
+          initialBudget={budgets.Debt || 0}
           onUpdate={handleUpdateBudget}
+          onBudgetSet={handleBudgetSet}
+          onBudgetDelete={handleBudgetDelete}
         />
         <BudgetCard
           title="Fun Money"
-          originalBudget={budgets.FunMoney || 100}
-          initialBudget={0}
+          initialBudget={budgets.FunMoney || 0}
           onUpdate={handleUpdateBudget}
+          onBudgetSet={handleBudgetSet}
+          onBudgetDelete={handleBudgetDelete}
         />
         <BudgetCard
           title="Savings"
-          originalBudget={budgets.Savings || 500}
-          initialBudget={0}
+          initialBudget={budgets.Savings || 0}
           onUpdate={handleUpdateBudget}
+          onBudgetSet={handleBudgetSet}
+          onBudgetDelete={handleBudgetDelete}
         />
       </div>
     </div>
   );
 }
 
-export default Home;
+export default Index;
